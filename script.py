@@ -2,22 +2,24 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# --- 1. Carregamento dos dados e one-hot encoding ---
+# --- 1. Carregamento e pré-processamento dos dados ---
+def carregar_dados(path='coluna_vertebral.csv'):
+    dados = np.genfromtxt(path, delimiter=',', dtype=str)
+    X = dados[1:, :-1].astype(float).T
+    X = (X - X.mean(axis=1, keepdims=True)) / X.std(axis=1, keepdims=True)
+    labels = dados[1:, -1]
+    Y = np.zeros((3, len(labels)))
+    
+    for i, rot in enumerate(labels):
+        if rot == 'NO':
+            Y[:, i] = [1, -1, -1]
+        elif rot == 'DH':
+            Y[:, i] = [-1, 1, -1]
+        elif rot == 'SL':
+            Y[:, i] = [-1, -1, 1]
+    return X, Y
 
-dados = np.genfromtxt('coluna vertebral.csv', delimiter=',', dtype=str)
-X = dados[1:, :-1].astype(float).T 
-labels = dados[1:, -1]
-
-Y = np.zeros((3, len(labels)))
-for i, rot in enumerate(labels):
-    if rot == 'NO':
-        Y[:, i] = [1, -1, -1]
-    elif rot == 'DH':
-        Y[:, i] = [-1, 1, -1]
-    elif rot == 'SL':
-        Y[:, i] = [-1, -1, 1]
-
-# --- 2. Funções de treinamento dos modelos ---
+# --- 2. Funções de treinamento ---
 def perceptron_simples(X, Y, epocas=100, eta=0.01):
     W = np.random.randn(Y.shape[0], X.shape[0])
     for _ in range(epocas):
@@ -44,7 +46,6 @@ def mlp(X, Y, h=10, epocas=200, eta=0.01):
     b1 = np.random.randn(h, 1)
     W2 = np.random.randn(c, h)
     b2 = np.random.randn(c, 1)
-
     for _ in range(epocas):
         Z1 = np.tanh(W1 @ X + b1)
         Y_pred = W2 @ Z1 + b2
@@ -58,7 +59,6 @@ def mlp(X, Y, h=10, epocas=200, eta=0.01):
         b2 -= eta * db2
         W1 -= eta * dW1
         b1 -= eta * db1
-
     return W1, b1, W2, b2
 
 def rbf(X, Y, k=20, sigma=1.0):
@@ -71,21 +71,10 @@ def rbf(X, Y, k=20, sigma=1.0):
     W = np.linalg.pinv(Phi.T) @ Y.T
     return W.T, centros
 
-# --- 3. Funções auxiliares ---
-def split_data(X, Y, proporcao=0.8):
-    N = X.shape[1]
-    idx = np.random.permutation(N)
-    n_train = int(proporcao * N)
-    return X[:, idx[:n_train]], Y[:, idx[:n_train]], X[:, idx[n_train:]], Y[:, idx[n_train:]]
-
+# --- 3. Predição dos modelos ---
 def pred_perceptron(W, X): return np.sign(W @ X)
 def pred_adaline(W, X): return np.sign(W @ X)
-
-def pred_mlp(W1, b1, W2, b2, X):
-    Z1 = np.tanh(W1 @ X + b1)
-    Y = W2 @ Z1 + b2
-    return np.sign(Y)
-
+def pred_mlp(W1, b1, W2, b2, X): return np.sign(W2 @ np.tanh(W1 @ X + b1) + b2)
 def pred_rbf(W, centros, X, sigma=1.0):
     k = centros.shape[1]
     n = X.shape[1]
@@ -95,6 +84,7 @@ def pred_rbf(W, centros, X, sigma=1.0):
             Phi[j, i] = np.exp(-np.sum((X[:, i] - centros[:, j])**2) / (2 * sigma**2))
     return np.sign(W @ Phi)
 
+# --- 4. Avaliação e validação ---
 def calcula_metricas(y_true, y_pred):
     acertos = np.all(y_true == y_pred, axis=0)
     acuracia = np.mean(acertos)
@@ -108,6 +98,12 @@ def calcula_metricas(y_true, y_pred):
         esp.append(TN / (TN + FP + 1e-10))
     return acuracia, np.mean(sens), np.mean(esp)
 
+def split_data(X, Y, proporcao=0.8):
+    N = X.shape[1]
+    idx = np.random.permutation(N)
+    n_train = int(proporcao * N)
+    return X[:, idx[:n_train]], Y[:, idx[:n_train]], X[:, idx[n_train:]], Y[:, idx[n_train:]]
+
 def matriz_confusao(y_true, y_pred):
     def decode(y):
         for i in range(y.shape[1]):
@@ -120,55 +116,44 @@ def matriz_confusao(y_true, y_pred):
     for t, p in zip(true, pred): M[t, p] += 1
     return M
 
-# --- 4. Validação Monte Carlo ---
-R = 100
-resultados, confs = {k: [] for k in ['Perceptron', 'ADALINE', 'MLP', 'RBF']}, []
+# --- 5. Execução Monte Carlo e análises ---
+def monte_carlo(X, Y, R=100):
+    resultados = {k: [] for k in ['Perceptron', 'ADALINE', 'MLP', 'RBF']}
+    confs = []
+    for _ in range(R):
+        Xt, Yt, Xs, Ys = split_data(X, Y)
+        Wp = perceptron_simples(Xt, Yt)
+        Wa = adaline(Xt, Yt)
+        W1, b1, W2, b2 = mlp(Xt, Yt)
+        Wr, centros = rbf(Xt, Yt)
 
-for _ in range(R):
-    Xt, Yt, Xs, Ys = split_data(X, Y)
-    Wp = perceptron_simples(Xt, Yt)
-    Wa = adaline(Xt, Yt)
-    W1, b1, W2, b2 = mlp(Xt, Yt)
-    Wr, centros = rbf(Xt, Yt)
+        yp = pred_perceptron(Wp, Xs)
+        ya = pred_adaline(Wa, Xs)
+        ym = pred_mlp(W1, b1, W2, b2, Xs)
+        yr = pred_rbf(Wr, centros, Xs)
 
-    yp = pred_perceptron(Wp, Xs)
-    ya = pred_adaline(Wa, Xs)
-    ym = pred_mlp(W1, b1, W2, b2, Xs)
-    yr = pred_rbf(Wr, centros, Xs)
+        resultados['Perceptron'].append(calcula_metricas(Ys, yp))
+        resultados['ADALINE'].append(calcula_metricas(Ys, ya))
+        resultados['MLP'].append(calcula_metricas(Ys, ym))
+        resultados['RBF'].append(calcula_metricas(Ys, yr))
 
-    resultados['Perceptron'].append(calcula_metricas(Ys, yp))
-    resultados['ADALINE'].append(calcula_metricas(Ys, ya))
-    resultados['MLP'].append(calcula_metricas(Ys, ym))
-    resultados['RBF'].append(calcula_metricas(Ys, yr))
+        confs.append({
+            'Perceptron': matriz_confusao(Ys, yp),
+            'ADALINE': matriz_confusao(Ys, ya),
+            'MLP': matriz_confusao(Ys, ym),
+            'RBF': matriz_confusao(Ys, yr),
+        })
+    return resultados, confs
 
-    confs.append({
-        'Perceptron': matriz_confusao(Ys, yp),
-        'ADALINE': matriz_confusao(Ys, ya),
-        'MLP': matriz_confusao(Ys, ym),
-        'RBF': matriz_confusao(Ys, yr),
-    })
+def extrair_acuracias(modelo, resultados):
+    return np.array([r[0] for r in resultados[modelo]])
 
-# --- 5. Matriz de Confusão das Melhores e Piores Rodadas ---
-def extrair_acuracias(modelo): return np.array([r[0] for r in resultados[modelo]])
-def melhor_pior_idx(modelo):
-    acs = extrair_acuracias(modelo)
+def melhor_pior_idx(modelo, resultados):
+    acs = extrair_acuracias(modelo, resultados)
     return np.argmax(acs), np.argmin(acs)
 
-for modelo in resultados:
-    best, worst = melhor_pior_idx(modelo)
-    plt.figure(figsize=(10, 4))
-    plt.subplot(1, 2, 1)
-    sns.heatmap(confs[best][modelo], annot=True, fmt='d', cmap='Greens')
-    plt.title(f'{modelo} - Melhor Rodada')
-    plt.subplot(1, 2, 2)
-    sns.heatmap(confs[worst][modelo], annot=True, fmt='d', cmap='Reds')
-    plt.title(f'{modelo} - Pior Rodada')
-    plt.tight_layout()
-    plt.show()
-
-# --- 6. Estatísticas finais + Boxplot ---
-def estatisticas(modelo):
-    acs = extrair_acuracias(modelo)
+def estatisticas(modelo, resultados):
+    acs = extrair_acuracias(modelo, resultados)
     return {
         'media': np.mean(acs),
         'desvio': np.std(acs),
@@ -176,14 +161,36 @@ def estatisticas(modelo):
         'min': np.min(acs)
     }
 
-for modelo in resultados:
-    print(f'\nModelo: {modelo}')
-    for k, v in estatisticas(modelo).items():
-        print(f'{k}: {v:.4f}')
+def plot_confusoes(confs, resultados):
+    for modelo in resultados:
+        best, worst = melhor_pior_idx(modelo, resultados)
+        plt.figure(figsize=(10, 4))
+        plt.subplot(1, 2, 1)
+        sns.heatmap(confs[best][modelo], annot=True, fmt='d', cmap='Greens')
+        plt.title(f'{modelo} - Melhor Rodada')
+        plt.subplot(1, 2, 2)
+        sns.heatmap(confs[worst][modelo], annot=True, fmt='d', cmap='Reds')
+        plt.title(f'{modelo} - Pior Rodada')
+        plt.tight_layout()
+        plt.show()
 
-plt.figure(figsize=(8, 6))
-plt.boxplot([extrair_acuracias(m) for m in resultados], labels=resultados.keys())
-plt.title("Boxplot - Acurácia dos Modelos")
-plt.ylabel("Acurácia")
-plt.grid(True)
-plt.show()
+def plot_boxplot(resultados):
+    plt.figure(figsize=(8, 6))
+    plt.boxplot([extrair_acuracias(m, resultados) for m in resultados], labels=resultados.keys())
+    plt.title("Boxplot - Acurácia dos Modelos")
+    plt.ylabel("Acurácia")
+    plt.grid(True)
+    plt.show()
+
+def imprimir_estatisticas(resultados):
+    for modelo in resultados:
+        print(f'\nModelo: {modelo}')
+        for k, v in estatisticas(modelo, resultados).items():
+            print(f'{k}: {v:.4f}')
+
+
+X, Y = carregar_dados()
+resultados, confs = monte_carlo(X, Y)
+plot_confusoes(confs, resultados)
+imprimir_estatisticas(resultados)
+plot_boxplot(resultados)
