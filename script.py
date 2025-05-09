@@ -7,16 +7,13 @@ def carregar_dados(path='coluna_vertebral.csv'):
     dados = np.genfromtxt(path, delimiter=',', dtype=str)
     X = dados[1:, :-1].astype(float).T
     X = (X - X.mean(axis=1, keepdims=True)) / X.std(axis=1, keepdims=True)
+    X = np.vstack([X, np.ones((1, X.shape[1]))])  
     labels = dados[1:, -1]
     Y = np.zeros((3, len(labels)))
-    
     for i, rot in enumerate(labels):
-        if rot == 'NO':
-            Y[:, i] = [1, -1, -1]
-        elif rot == 'DH':
-            Y[:, i] = [-1, 1, -1]
-        elif rot == 'SL':
-            Y[:, i] = [-1, -1, 1]
+        if rot == 'NO': Y[:, i] = [1, -1, -1]
+        elif rot == 'DH': Y[:, i] = [-1, 1, -1]
+        elif rot == 'SL': Y[:, i] = [-1, -1, 1]
     return X, Y
 
 # --- 2. Funções de treinamento ---
@@ -118,7 +115,7 @@ def matriz_confusao(y_true, y_pred):
 
 # --- 5. Execução Monte Carlo e análises ---
 def monte_carlo(X, Y, R=100):
-    resultados = {k: [] for k in ['Perceptron', 'ADALINE', 'MLP', 'RBF']}
+    resultados = {k: [] for k in ['Perceptron', 'ADALINE', 'MLP']}
     confs = []
     for _ in range(R):
         Xt, Yt, Xs, Ys = split_data(X, Y)
@@ -135,13 +132,13 @@ def monte_carlo(X, Y, R=100):
         resultados['Perceptron'].append(calcula_metricas(Ys, yp))
         resultados['ADALINE'].append(calcula_metricas(Ys, ya))
         resultados['MLP'].append(calcula_metricas(Ys, ym))
-        resultados['RBF'].append(calcula_metricas(Ys, yr))
+    
 
         confs.append({
             'Perceptron': matriz_confusao(Ys, yp),
             'ADALINE': matriz_confusao(Ys, ya),
             'MLP': matriz_confusao(Ys, ym),
-            'RBF': matriz_confusao(Ys, yr),
+          
         })
     return resultados, confs
 
@@ -188,7 +185,7 @@ def imprimir_estatisticas(resultados):
         for k, v in estatisticas(modelo, resultados).items():
             print(f'{k}: {v:.4f}')
 
-
+# --- Execução final ---
 X, Y = carregar_dados()
 resultados, confs = monte_carlo(X, Y)
 plot_confusoes(confs, resultados)
