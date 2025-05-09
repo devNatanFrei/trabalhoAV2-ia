@@ -13,30 +13,82 @@ def plot_data(x, y):
     plt.xlabel('Velocidade do Vento')
     plt.ylabel('Potência Gerada')
     plt.title('Potência Gerada')
-    # plt.show()
+    plt.show()
 
 
 class Adaline:
-    def __init__(self, learning_rate, n_ephocs):
-        self.lr = learning_rate
-        self.n_ephocs = n_ephocs
+    def __init__(self, X_treino, Y_treino, num_max_epoca, taxa_aprendizagem, precisao, plot=True):
+        self.p, self.N = X_treino.shape  
+        self.X_treino = np.vstack((-np.ones((1, self.N)), X_treino))  
+        self.Y_treino = Y_treino
+        self.taxa_aprendizagem = taxa_aprendizagem
+        self.pr = precisao
+        self.num_max_e = num_max_epoca
+        self.w = np.random.random_sample((self.p + 1, 1))  
+        self.plot = plot
+        self.x1 = np.linspace(-2, 7)
         
-    
-    def fit(self, x, y):
-        self.w = np.zeros((x.shape[1] + 1, 1))
-        x_bias = np.hstack((np.ones((x.shape[0], 1)), x))
-        self.losses = []
+        if self.plot:
+            plt.figure(1)
+            plt.scatter(X_treino[0, :5], X_treino[1, :5], c='purple')
+            plt.scatter(X_treino[0, 5:], X_treino[1, 5:], c='blue')
+            self.linha = plt.plot(self.x1, self.__gerar_reta(), c='k')
+            plt.xlim(-0.5, 6.5)
+            plt.ylim(-0.5, 6.5)
 
-        for _ in range(self.n_ephocs):
-            y_pred = x_bias @ self.w
-            error = y - y_pred
-            self.w += self.lr * (x_bias.T @ error) / x.shape[0]
-            mse = np.mean(error ** 2)
-            self.losses.append(mse)
+    def treino(self):
+        epocas = 0
+        EQM1 = 1
+        EQM2 = 0
+        hist_eqm = []
 
-    def predict(self, x):
-        x_bias = np.hstack((np.ones((x.shape[0], 1)), x))
-        return x_bias @ self.w  
+        while epocas < self.num_max_e and abs(EQM1 - EQM2) > self.pr:
+            EQM1 = self.__EQM(self.X_treino)
+            hist_eqm.append(EQM1)
+
+            for k in range(self.N):
+                x_k = self.X_treino[:, k].reshape(self.p + 1, 1)
+                u_k = float(self.w.T @ x_k)
+                d_k = float(self.Y_treino[k])
+                e_k = d_k - u_k
+                self.w += self.taxa_aprendizagem * e_k * x_k
+
+            if self.plot:
+                plt.pause(0.1)
+                self.linha[0].remove()
+                self.linha = plt.plot(self.x1, self.__gerar_reta(), c='k')
+
+            EQM2 = self.__EQM(self.X_treino)
+            epocas += 1
+
+        print(f"Épocas até convergência: {epocas}")
+        
+        if self.plot:
+            plt.figure(2)
+            plt.plot(hist_eqm)
+            plt.xlabel("Épocas")
+            plt.ylabel("EQM")
+            plt.title("Curva de Convergência do EQM")
+            plt.grid(True)
+            plt.show()
+
+    def predizer(self, X):
+        X_bias = np.vstack((-np.ones((1, X.shape[1])), X))
+        y_pred = self.w.T @ X_bias
+        return y_pred
+
+    def __EQM(self, X):
+        eqm = 0
+        for k in range(self.N):
+            x_k = X[:, k].reshape(self.p + 1, 1)
+            u_k = float(self.w.T @ x_k)
+            d_k = float(self.Y_treino[k])
+            eqm += (d_k - u_k) ** 2
+        return eqm / (2 * self.N)
+
+    def __gerar_reta(self):
+        
+        return np.nan_to_num(-self.x1 * self.w[1, 0] / self.w[2, 0] + self.w[0, 0] / self.w[2, 0])
     
 class MLP:
     def __init__(self, n_hidden, learning_rate, n_ephocs, random_state=None):
@@ -144,11 +196,7 @@ mlp_under.fit(x, y)
 mlp_over = MLP(n_hidden=50, learning_rate=0.01, n_ephocs=5000, random_state=42)
 mlp_over.fit(x, y)
 
-# plot_learning_curve(
-#     [adaline, mlp_under, mlp_over],  
-#     ['Adaline', 'MLP Underfitting', 'MLP Overfitting'], 
-#     title='Learning Curve'
-# )
+
 
 print("Monte Carlo Validation Results")
 print()
