@@ -1,201 +1,176 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
+import seaborn as sns
 
-# 1. Leitura e organização dos dados
-data = np.loadtxt('Spiral3d.csv', delimiter=',')
-X = data[:, :3]
-y = data[:, 3].astype(int)
+# ============================
+# Funções auxiliares e MLP
+# ============================
 
-# 2. Visualização inicial - gráfico de dispersão 3D
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-scatter = ax.scatter(X[:, 0], X[:, 1], X[:, 2], c=y, cmap='bwr', alpha=0.6)
-plt.title("Visualização inicial dos dados")
-plt.show()
+def carregar_dados(caminho):
+    dados = np.loadtxt(caminho, delimiter=",")
+    return dados[:, :3], dados[:, 3].astype(int)
 
-# Funções auxiliares
-def train_test_split(X, y, test_size=0.2):
-    idx = np.arange(X.shape[0])
-    np.random.shuffle(idx)
-    split = int(X.shape[0] * (1 - test_size))
-    return X[idx[:split]], X[idx[split:]], y[idx[:split]], y[idx[split:]]
-
-def sigmoid(x):
+def sigmoide(x):
     return 1 / (1 + np.exp(-x))
 
-def sigmoid_deriv(x):
-    return x * (1 - x)
+def derivada_sigmoide(x):
+    s = sigmoide(x)
+    return s * (1 - s)
 
-def accuracy(y_true, y_pred):
-    return np.mean(y_true == y_pred)
+def calcular_metricas(y_verdadeiro, y_predito):
+    VP = np.sum((y_verdadeiro == 1) & (y_predito == 1))
+    VN = np.sum((y_verdadeiro == 0) & (y_predito == 0))
+    FP = np.sum((y_verdadeiro == 0) & (y_predito == 1))
+    FN = np.sum((y_verdadeiro == 1) & (y_predito == 0))
+    acuracia = (VP + VN) / len(y_verdadeiro)
+    sensibilidade = VP / (VP + FN + 1e-10)
+    especificidade = VN / (VN + FP + 1e-10)
+    return acuracia, sensibilidade, especificidade, VP, VN, FP, FN
 
-def confusion_matrix_elements(y_true, y_pred):
-    TP = np.sum((y_true == 1) & (y_pred == 1))
-    TN = np.sum((y_true == 0) & (y_pred == 0))
-    FP = np.sum((y_true == 0) & (y_pred == 1))
-    FN = np.sum((y_true == 1) & (y_pred == 0))
-    return TP, TN, FP, FN
+def plotar_curva_aprendizado(acuracias_treino, acuracias_teste, titulo):
+    plt.plot(acuracias_treino, label="Treinamento")
+    plt.plot(acuracias_teste, label="Teste")
+    plt.title(titulo)
+    plt.xlabel("Épocas")
+    plt.ylabel("Acurácia")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
 
-def compute_metrics(y_true, y_pred):
-    TP, TN, FP, FN = confusion_matrix_elements(y_true, y_pred)
-    acc = (TP + TN) / (TP + TN + FP + FN)
-    sens = TP / (TP + FN) if (TP + FN) else 0
-    spec = TN / (TN + FP) if (TN + FP) else 0
-    return acc, sens, spec
-
-# 3. Perceptron Simples
-class SimplePerceptron:
-    def __init__(self, lr=0.01, n_iter=100):
-        self.lr = lr
-        self.n_iter = n_iter
-
-    def fit(self, X, y):
-        self.weights = np.zeros(X.shape[1])
-        self.bias = 0
-        self.errors = []
-
-        for _ in range(self.n_iter):
-            error = 0
-            for xi, target in zip(X, y):
-                update = self.lr * (target - self.predict(xi))
-                self.weights += update * xi
-                self.bias += update
-                error += int(update != 0.0)
-            self.errors.append(error)
-
-    def net_input(self, X):
-        return np.dot(X, self.weights) + self.bias
-
-    def predict(self, X):
-        return np.where(self.net_input(X) >= 0.0, 1, 0)
-
-# 4. MLP (1 hidden layer)
 class MLP:
-    def __init__(self, hidden_size=5, epochs=1000, lr=0.01):
-        self.hidden_size = hidden_size
-        self.epochs = epochs
-        self.lr = lr
+    def __init__(self, camadas, taxa_aprendizado=0.01, epocas=100):
+        self.camadas = camadas
+        self.taxa_aprendizado = taxa_aprendizado
+        self.epocas = epocas
+        self.pesos = self._inicializar_pesos()
 
-    def fit(self, X, y):
-        self.input_size = X.shape[1]
-        self.output_size = 1
+    def _inicializar_pesos(self):
+        pesos = {}
+        for i in range(len(self.camadas) - 1):
+            pesos[f'W{i}'] = np.random.randn(self.camadas[i], self.camadas[i+1]) * 0.1
+            pesos[f'b{i}'] = np.zeros(self.camadas[i+1])
+        return pesos
 
-        # Weight initialization
-        self.W1 = np.random.randn(self.input_size, self.hidden_size)
-        self.b1 = np.zeros((1, self.hidden_size))
-        self.W2 = np.random.randn(self.hidden_size, self.output_size)
-        self.b2 = np.zeros((1, self.output_size))
+    def treinar(self, X, y):
+        y = y.reshape(-1, 1)
+        for epoca in range(self.epocas):
+            A, Z = [X], []
+            for i in range(len(self.camadas) - 1):
+                z = A[i] @ self.pesos[f'W{i}'] + self.pesos[f'b{i}']
+                Z.append(z)
+                A.append(sigmoide(z))
 
-        self.loss_curve = []
+            erro = (A[-1] - y) * derivada_sigmoide(Z[-1])
+            for i in reversed(range(len(self.camadas) - 1)):
+                grad_W = A[i].T @ erro
+                grad_b = np.sum(erro, axis=0)
+                self.pesos[f'W{i}'] -= self.taxa_aprendizado * grad_W
+                self.pesos[f'b{i}'] -= self.taxa_aprendizado * grad_b
+                if i > 0:
+                    erro = (erro @ self.pesos[f'W{i}'].T) * derivada_sigmoide(Z[i-1])
+        return self
 
-        for epoch in range(self.epochs):
-            # Forward
-            z1 = X @ self.W1 + self.b1
-            a1 = sigmoid(z1)
-            z2 = a1 @ self.W2 + self.b2
-            a2 = sigmoid(z2)
+    def prever(self, X):
+        A = X
+        for i in range(len(self.camadas) - 1):
+            Z = A @ self.pesos[f'W{i}'] + self.pesos[f'b{i}']
+            A = sigmoide(Z)
+        return (A >= 0.5).astype(int).flatten()
 
-            # Loss (MSE)
-            loss = np.mean((a2 - y.reshape(-1, 1))**2)
-            self.loss_curve.append(loss)
+def simulacao_monte_carlo(X, y, camadas, R=250, epocas=100):
+    acuracias, sensibilidades, especificidades = [], [], []
 
-            # Backpropagation
-            d2 = (a2 - y.reshape(-1, 1)) * sigmoid_deriv(a2)
-            d1 = d2 @ self.W2.T * sigmoid_deriv(a1)
+    # Inicialização segura com estrutura completa
+    melhor = {'acuracia': 0, 'sens': 0, 'esp': 0, 'confusao': (0, 0, 0, 0), 'modelo': None, 'X': None, 'y': None}
+    pior = {'acuracia': 1, 'sens': 0, 'esp': 0, 'confusao': (0, 0, 0, 0), 'modelo': None, 'X': None, 'y': None}
 
-            self.W2 -= self.lr * a1.T @ d2
-            self.b2 -= self.lr * np.sum(d2, axis=0, keepdims=True)
-            self.W1 -= self.lr * X.T @ d1
-            self.b1 -= self.lr * np.sum(d1, axis=0, keepdims=True)
+    for r in range(R):
+        indices = np.random.permutation(len(X))
+        tamanho_treino = int(0.8 * len(X))
+        idx_treino, idx_teste = indices[:tamanho_treino], indices[tamanho_treino:]
+        X_treino, X_teste = X[idx_treino], X[idx_teste]
+        y_treino, y_teste = y[idx_treino], y[idx_teste]
 
-    def predict(self, X):
-        a1 = sigmoid(X @ self.W1 + self.b1)
-        a2 = sigmoid(a1 @ self.W2 + self.b2)
-        return (a2 > 0.5).astype(int).ravel()
+        mlp = MLP(camadas, epocas=epocas)
+        mlp.treinar(X_treino, y_treino)
+        y_predito = mlp.prever(X_teste)
 
-# 5. RBF Network
-class RBF:
-    def __init__(self, num_centers=10, lr=0.01):
-        self.num_centers = num_centers
-        self.lr = lr
+        acuracia, sensibilidade, especificidade, VP, VN, FP, FN = calcular_metricas(y_teste, y_predito)
+        acuracias.append(acuracia)
+        sensibilidades.append(sensibilidade)
+        especificidades.append(especificidade)
 
-    def _kernel(self, X, C, beta=1.0):
-        diff = X[:, np.newaxis] - C
-        return np.exp(-beta * np.sum(diff ** 2, axis=2))
+        if acuracia > melhor['acuracia']:
+            melhor.update({'acuracia': acuracia, 'sens': sensibilidade, 'esp': especificidade, 
+                           'confusao': (VP, FN, FP, VN), 'modelo': mlp, 'X': X_teste, 'y': y_teste})
+        if acuracia < pior['acuracia']:
+            pior.update({'acuracia': acuracia, 'sens': sensibilidade, 'esp': especificidade, 
+                         'confusao': (VP, FN, FP, VN), 'modelo': mlp, 'X': X_teste, 'y': y_teste})
+    return acuracias, sensibilidades, especificidades, melhor, pior
 
-    def fit(self, X, y):
-        rand_idx = np.random.choice(X.shape[0], self.num_centers, replace=False)
-        self.centers = X[rand_idx]
-        G = self._kernel(X, self.centers)
-        self.weights = np.linalg.pinv(G) @ y
+def plotar_matriz_confusao(confusao, titulo):
+    VP, FN, FP, VN = confusao
+    matriz = np.array([[VP, FN], [FP, VN]])
+    sns.heatmap(matriz, annot=True, fmt="d", cmap="Blues", 
+                xticklabels=["Predito 1", "Predito 0"], 
+                yticklabels=["Real 1", "Real 0"])
+    plt.title(titulo)
+    plt.show()
 
-    def predict(self, X):
-        G = self._kernel(X, self.centers)
-        output = G @ self.weights
-        return (output > 0.5).astype(int)
+def plotar_box_violin(dados, rotulos, titulo, tipo="box"):
+    plt.figure(figsize=(8, 6))
+    if tipo == "box":
+        sns.boxplot(data=dados)
+    else:
+        sns.violinplot(data=dados)
+    plt.xticks(ticks=np.arange(len(rotulos)), labels=rotulos)
+    plt.title(titulo)
+    plt.grid(True)
+    plt.show()
 
-# 6. Validação Monte Carlo
-R = 250
-results = {"perceptron": [], "mlp": [], "rbf": []}
-best, worst = {"acc": 0}, {"acc": 1}
+# ========================
+# Execução dos modelos
+# ========================
+X, y = carregar_dados("Spiral3d.csv")
 
-for i in range(R):
-    X_train, X_test, y_train, y_test = train_test_split(X, y)
+topologias = {
+    "Subdimensionada": [3, 2, 1],
+    "Adequada": [3, 10, 1],
+    "Superdimensionada": [3, 50, 30, 1]
+}
 
-    # Perceptron
-    p = SimplePerceptron()
-    p.fit(X_train, y_train)
-    pred_p = p.predict(X_test)
-    acc_p, sens_p, spec_p = compute_metrics(y_test, pred_p)
+resultados = {}
+for nome, camadas in topologias.items():
+    print(f"\nRodando Monte Carlo - {nome}")
+    acuracias, sensibilidades, especificidades, melhor, pior = simulacao_monte_carlo(X, y, camadas)
+    resultados[nome] = {
+        "acuracia": acuracias, "sens": sensibilidades, "esp": especificidades,
+        "melhor": melhor, "pior": pior
+    }
 
-    # MLP
-    m = MLP(hidden_size=10)
-    m.fit(X_train, y_train)
-    pred_m = m.predict(X_test)
-    acc_m, sens_m, spec_m = compute_metrics(y_test, pred_m)
+# ===========================
+# Gráficos e análises finais
+# ===========================
 
-    # RBF
-    r = RBF(num_centers=20)
-    r.fit(X_train, y_train)
-    pred_r = r.predict(X_test)
-    acc_r, sens_r, spec_r = compute_metrics(y_test, pred_r)
+# 6 - Matrizes de confusão
+for nome in resultados:
+    print(f"\n{nome} - Melhor")
+    if resultados[nome]["melhor"]["modelo"] is not None:
+        plotar_matriz_confusao(resultados[nome]["melhor"]['confusao'], f"{nome} - Maior Acurácia")
+    print(f"{nome} - Pior")
+    if resultados[nome]["pior"]["modelo"] is not None:
+        plotar_matriz_confusao(resultados[nome]["pior"]['confusao'], f"{nome} - Menor Acurácia")
 
-    # Store
-    results["perceptron"].append((acc_p, sens_p, spec_p))
-    results["mlp"].append((acc_m, sens_m, spec_m))
-    results["rbf"].append((acc_r, sens_r, spec_r))
-
-    if acc_m > best["acc"]:
-        best.update({"acc": acc_m, "model": m, "pred": pred_m, "true": y_test, "loss": m.loss_curve})
-    if acc_m < worst["acc"]:
-        worst.update({"acc": acc_m, "model": m, "pred": pred_m, "true": y_test, "loss": m.loss_curve})
-
-# 7. Estatísticas finais
-def summarize(metric_index):
-    def stats(model_name):
-        vals = [r[metric_index] for r in results[model_name]]
-        return {
-            "mean": np.mean(vals),
-            "std": np.std(vals),
-            "max": np.max(vals),
-            "min": np.min(vals)
-        }
-    return stats("perceptron"), stats("mlp"), stats("rbf")
-
-acc_stats = summarize(0)
-sens_stats = summarize(1)
-spec_stats = summarize(2)
-
-print("ACURÁCIA:", acc_stats)
-print("SENSIBILIDADE:", sens_stats)
-print("ESPECIFICIDADE:", spec_stats)
-
-# Plot curvas de aprendizado
-plt.plot(best["loss"], label='Melhor Acurácia')
-plt.plot(worst["loss"], label='Pior Acurácia')
-plt.title("Curva de aprendizado (MLP)")
-plt.xlabel("Épocas")
-plt.ylabel("Erro")
-plt.legend()
-plt.show()
+# 7 - Tabelas e boxplots
+for metrica in ['acuracia', 'sens', 'esp']:
+    dados = [resultados[n][metrica] for n in topologias]
+    rotulos = list(topologias.keys())
+    print(f"\nMétrica: {metrica.upper()}")
+    for i, nome in enumerate(rotulos):
+        media = np.mean(dados[i])
+        desvio = np.std(dados[i])
+        maximo = np.max(dados[i])
+        minimo = np.min(dados[i])
+        print(f"{nome:18} | Média: {media:.4f} | Desvio: {desvio:.4f} | Máx: {maximo:.4f} | Mín: {minimo:.4f}")
+    plotar_box_violin(dados, rotulos, f"{metrica.upper()} - Boxplot", "box")
+    plotar_box_violin(dados, rotulos, f"{metrica.upper()} - Violin Plot", "violin")
