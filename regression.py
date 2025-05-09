@@ -1,95 +1,46 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+# Carregamento dos dados
 def load_data():
     data = np.loadtxt('aerogerador.dat', delimiter='\t')
     x = data[:, 0].reshape(-1, 1)
     y = data[:, 1].reshape(-1, 1)
     return x, y
 
+# Gráfico de dispersão dos dados
 def plot_data(x, y):
     plt.figure(figsize=(10, 6))
     plt.scatter(x, y, s=10)
     plt.xlabel('Velocidade do Vento')
     plt.ylabel('Potência Gerada')
-    plt.title('Potência Gerada')
-    plt.show()
+    plt.title('Potência Gerada pelo Aerogerador')
 
-
+# Modelo ADALINE
 class Adaline:
-    def __init__(self, X_treino, Y_treino, num_max_epoca, taxa_aprendizagem, precisao, plot=True):
-        self.p, self.N = X_treino.shape  
-        self.X_treino = np.vstack((-np.ones((1, self.N)), X_treino))  
-        self.Y_treino = Y_treino
-        self.taxa_aprendizagem = taxa_aprendizagem
-        self.pr = precisao
-        self.num_max_e = num_max_epoca
-        self.w = np.random.random_sample((self.p + 1, 1))  
-        self.plot = plot
-        self.x1 = np.linspace(-2, 7)
-        
-        if self.plot:
-            plt.figure(1)
-            plt.scatter(X_treino[0, :5], X_treino[1, :5], c='purple')
-            plt.scatter(X_treino[0, 5:], X_treino[1, 5:], c='blue')
-            self.linha = plt.plot(self.x1, self.__gerar_reta(), c='k')
-            plt.xlim(-0.5, 6.5)
-            plt.ylim(-0.5, 6.5)
+    def __init__(self, learning_rate=0.01, n_epochs=100):
+        self.learning_rate = learning_rate
+        self.n_epochs = n_epochs
 
-    def treino(self):
-        epocas = 0
-        EQM1 = 1
-        EQM2 = 0
-        hist_eqm = []
+    def fit(self, x, y):
+        n_samples, n_features = x.shape
+        self.w = np.random.randn(n_features, 1)
+        self.b = 0
+        self.losses = []
 
-        while epocas < self.num_max_e and abs(EQM1 - EQM2) > self.pr:
-            EQM1 = self.__EQM(self.X_treino)
-            hist_eqm.append(EQM1)
+        for _ in range(self.n_epochs):
+            y_pred = x @ self.w + self.b
+            error = y - y_pred
+            mse = np.mean(error ** 2)
+            self.losses.append(mse)
 
-            for k in range(self.N):
-                x_k = self.X_treino[:, k].reshape(self.p + 1, 1)
-                u_k = float(self.w.T @ x_k)
-                d_k = float(self.Y_treino[k])
-                e_k = d_k - u_k
-                self.w += self.taxa_aprendizagem * e_k * x_k
+            self.w += self.learning_rate * (x.T @ error) / n_samples
+            self.b += self.learning_rate * np.mean(error)
 
-            if self.plot:
-                plt.pause(0.1)
-                self.linha[0].remove()
-                self.linha = plt.plot(self.x1, self.__gerar_reta(), c='k')
+    def predict(self, x):
+        return x @ self.w + self.b
 
-            EQM2 = self.__EQM(self.X_treino)
-            epocas += 1
-
-        print(f"Épocas até convergência: {epocas}")
-        
-        if self.plot:
-            plt.figure(2)
-            plt.plot(hist_eqm)
-            plt.xlabel("Épocas")
-            plt.ylabel("EQM")
-            plt.title("Curva de Convergência do EQM")
-            plt.grid(True)
-            plt.show()
-
-    def predizer(self, X):
-        X_bias = np.vstack((-np.ones((1, X.shape[1])), X))
-        y_pred = self.w.T @ X_bias
-        return y_pred
-
-    def __EQM(self, X):
-        eqm = 0
-        for k in range(self.N):
-            x_k = X[:, k].reshape(self.p + 1, 1)
-            u_k = float(self.w.T @ x_k)
-            d_k = float(self.Y_treino[k])
-            eqm += (d_k - u_k) ** 2
-        return eqm / (2 * self.N)
-
-    def __gerar_reta(self):
-        
-        return np.nan_to_num(-self.x1 * self.w[1, 0] / self.w[2, 0] + self.w[0, 0] / self.w[2, 0])
-    
+# Modelo MLP com 1 camada oculta
 class MLP:
     def __init__(self, n_hidden, learning_rate, n_ephocs, random_state=None):
         self.n_hidden = n_hidden
@@ -124,7 +75,7 @@ class MLP:
             mse = np.mean(error ** 2)
             self.losses.append(mse)
             
-            d_output = -2*error
+            d_output = -2 * error
             d_w2 = (a1.T @ d_output) / n_samples
             d_b2 = np.mean(d_output, axis=0, keepdims=True)
             
@@ -142,19 +93,19 @@ class MLP:
         a1 = self.sigmoid(x @ self.w1 + self.b1)
         output = a1 @ self.w2 + self.b2
         return output
-    
 
-def plot_learning_curve(models, labels, title='Learning Curve'):
+# Curvas de aprendizado
+def plot_learning_curve(models, labels, title='Curvas de Aprendizado'):
+    plt.figure(figsize=(10, 6))
     for model, label in zip(models, labels):
         plt.plot(model.losses, label=label)
     plt.title(title)
-    plt.xlabel('Epochs')
-    plt.ylabel('MSE')
+    plt.xlabel('Épocas')
+    plt.ylabel('Erro Quadrático Médio (MSE)')
     plt.legend()
     plt.grid()
 
-   
-
+# Validação Monte Carlo (250 rodadas)
 def monte_carlo_validation(model_class, x, y, R, **model_params):
     mse_list = []
     
@@ -182,29 +133,39 @@ def monte_carlo_validation(model_class, x, y, R, **model_params):
         'max':  mse_list.max(),
     }
     return results
-     
-     
+
+# Execução principal
 x, y = load_data()
 plot_data(x, y)
+plt.show()
 
-adaline = Adaline(learning_rate=0.01, n_ephocs=1000)
-adaline.fit(x, y)
+# Comentário: Hiperparâmetros foram ajustados empiricamente com base na estabilidade da curva de aprendizado.
 
-mlp_under = MLP(n_hidden=3, learning_rate=0.01, n_ephocs=5000, random_state=42)
+# Treinamento MLP com 3 topologias
+mlp_under = MLP(n_hidden=2, learning_rate=0.01, n_ephocs=500)      # underfitting
+mlp_ideal = MLP(n_hidden=10, learning_rate=0.01, n_ephocs=500)     # adequada
+mlp_over  = MLP(n_hidden=50, learning_rate=0.01, n_ephocs=500)     # overfitting
+
 mlp_under.fit(x, y)
-
-mlp_over = MLP(n_hidden=50, learning_rate=0.01, n_ephocs=5000, random_state=42)
+mlp_ideal.fit(x, y)
 mlp_over.fit(x, y)
 
+# Gráfico de curvas de aprendizado
+plot_learning_curve([mlp_under, mlp_ideal, mlp_over],
+                    ['Underfitting (2 neurônios)', 'Adequada (10 neurônios)', 'Overfitting (50 neurônios)'],
+                    title='Curvas de Aprendizado - MLP')
+plt.show()
 
+# Validação Monte Carlo
+adaline_results = monte_carlo_validation(Adaline, x, y, R=250, learning_rate=0.01, n_epochs=500)
+mlp_results     = monte_carlo_validation(MLP, x, y, R=250, n_hidden=10, learning_rate=0.01, n_ephocs=500)
 
-print("Monte Carlo Validation Results")
-print()
+# Impressão dos resultados
+print("\nResultados da Validação Monte Carlo (250 rodadas):")
+print("ADALINE:")
+for k, v in adaline_results.items():
+    print(f"  {k}: {v:.6f}")
 
-results_adaline = monte_carlo_validation(Adaline, x, y, R=250, learning_rate=0.01, n_ephocs=1000)
-results_mlp_under = monte_carlo_validation(MLP, x, y, R=250, n_hidden=3, learning_rate=0.01, n_ephocs=5000, random_state=42)
-results_mlp_over = monte_carlo_validation(MLP, x, y, R=250, n_hidden=50, learning_rate=0.01, n_ephocs=5000, random_state=42)
-
-print("Adaline Results:", results_adaline)
-print("MLP Underfitting Results:", results_mlp_under)
-print("MLP Overfitting Results:", results_mlp_over)
+print("\nMLP (n_hidden=10):")
+for k, v in mlp_results.items():
+    print(f"  {k}: {v:.6f}")
