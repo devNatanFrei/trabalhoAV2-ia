@@ -58,28 +58,10 @@ def mlp(X, Y, h=10, epocas=200, eta=0.01):
         b1 -= eta * db1
     return W1, b1, W2, b2
 
-def rbf(X, Y, k=20, sigma=1.0):
-    idx = np.random.choice(X.shape[1], k, replace=False)
-    centros = X[:, idx]
-    Phi = np.zeros((k, X.shape[1]))
-    for i in range(X.shape[1]):
-        for j in range(k):
-            Phi[j, i] = np.exp(-np.sum((X[:, i] - centros[:, j])**2) / (2*sigma**2))
-    W = np.linalg.pinv(Phi.T) @ Y.T
-    return W.T, centros
-
 # --- 3. Predição dos modelos ---
 def pred_perceptron(W, X): return np.sign(W @ X)
 def pred_adaline(W, X): return np.sign(W @ X)
 def pred_mlp(W1, b1, W2, b2, X): return np.sign(W2 @ np.tanh(W1 @ X + b1) + b2)
-def pred_rbf(W, centros, X, sigma=1.0):
-    k = centros.shape[1]
-    n = X.shape[1]
-    Phi = np.zeros((k, n))
-    for i in range(n):
-        for j in range(k):
-            Phi[j, i] = np.exp(-np.sum((X[:, i] - centros[:, j])**2) / (2 * sigma**2))
-    return np.sign(W @ Phi)
 
 # --- 4. Avaliação e validação ---
 def calcula_metricas(y_true, y_pred):
@@ -122,23 +104,19 @@ def monte_carlo(X, Y, R=100):
         Wp = perceptron_simples(Xt, Yt)
         Wa = adaline(Xt, Yt)
         W1, b1, W2, b2 = mlp(Xt, Yt)
-        Wr, centros = rbf(Xt, Yt)
 
         yp = pred_perceptron(Wp, Xs)
         ya = pred_adaline(Wa, Xs)
         ym = pred_mlp(W1, b1, W2, b2, Xs)
-        yr = pred_rbf(Wr, centros, Xs)
 
         resultados['Perceptron'].append(calcula_metricas(Ys, yp))
         resultados['ADALINE'].append(calcula_metricas(Ys, ya))
         resultados['MLP'].append(calcula_metricas(Ys, ym))
-    
 
         confs.append({
             'Perceptron': matriz_confusao(Ys, yp),
             'ADALINE': matriz_confusao(Ys, ya),
             'MLP': matriz_confusao(Ys, ym),
-          
         })
     return resultados, confs
 
