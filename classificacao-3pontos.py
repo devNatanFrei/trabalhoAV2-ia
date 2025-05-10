@@ -504,13 +504,13 @@ print("-" * 30)
 
 # --- 5. Validação por Monte Carlo ---
 print("\n5. Validação por Monte Carlo (R=250)")
-R = 30 # REDUZIDO PARA TESTES RÁPIDOS. Mude para 250 para a execução final.
+R = 250
 print(f"AVISO: Número de rodadas Monte Carlo (R) está configurado para {R} para teste rápido.")
 test_fraction = 0.2
 
 # Hiperparâmetros para Monte Carlo (usar os do "bom ajuste" ou otimizados)
 lr_sp_mc = 0.01
-epochs_sp_mc = 600
+epochs_sp_mc = 100
 
 lr_mlp_mc = lr_good_fit
 epochs_mlp_mc = epochs_good_fit
