@@ -142,9 +142,9 @@ plt.show()
 # Comentário: Hiperparâmetros foram ajustados empiricamente com base na estabilidade da curva de aprendizado.
 
 # Treinamento MLP com 3 topologias
-mlp_under = MLP(n_hidden=2, learning_rate=0.01, n_ephocs=500)      # underfitting
-mlp_ideal = MLP(n_hidden=10, learning_rate=0.01, n_ephocs=500)     # adequada
-mlp_over  = MLP(n_hidden=50, learning_rate=0.01, n_ephocs=500)     # overfitting
+mlp_under = MLP(n_hidden=2, learning_rate=0.01, n_ephocs=600)      # underfitting
+mlp_ideal = MLP(n_hidden=10, learning_rate=0.01, n_ephocs=600)     # adequada
+mlp_over  = MLP(n_hidden=50, learning_rate=0.01, n_ephocs=600)     # overfitting
 
 mlp_under.fit(x, y)
 mlp_ideal.fit(x, y)
@@ -157,8 +157,8 @@ plot_learning_curve([mlp_under, mlp_ideal, mlp_over],
 plt.show()
 
 # Validação Monte Carlo
-adaline_results = monte_carlo_validation(Adaline, x, y, R=250, learning_rate=0.01, n_epochs=500)
-mlp_results     = monte_carlo_validation(MLP, x, y, R=250, n_hidden=10, learning_rate=0.01, n_ephocs=500)
+adaline_results = monte_carlo_validation(Adaline, x, y, R=250, learning_rate=0.01, n_epochs=1000)
+mlp_results     = monte_carlo_validation(MLP, x, y, R=250, n_hidden=10, learning_rate=0.01, n_ephocs=1000)
 
 # Impressão dos resultados
 print("\nResultados da Validação Monte Carlo (250 rodadas):")
