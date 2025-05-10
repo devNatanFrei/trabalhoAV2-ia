@@ -17,7 +17,7 @@ def carregar_dados(path='coluna_vertebral.csv'):
     return X, Y
 
 # --- 2. Funções de treinamento ---
-def perceptron_simples(X, Y, epocas=100, eta=0.01):
+def perceptron_simples(X, Y, epocas=600, eta=0.01):
     W = np.random.randn(Y.shape[0], X.shape[0])
     for _ in range(epocas):
         for i in range(X.shape[1]):
@@ -28,7 +28,7 @@ def perceptron_simples(X, Y, epocas=100, eta=0.01):
             W += eta * erro @ xi.T
     return W
 
-def adaline(X, Y, epocas=100, eta=0.001):
+def adaline(X, Y, epocas=600, eta=0.001):
     W = np.random.randn(Y.shape[0], X.shape[0])
     for _ in range(epocas):
         Y_pred = W @ X
@@ -36,7 +36,7 @@ def adaline(X, Y, epocas=100, eta=0.001):
         W += eta * erro @ X.T / X.shape[1]
     return W
 
-def mlp(X, Y, h=10, epocas=200, eta=0.01):
+def mlp(X, Y, h=10, epocas=600, eta=0.01):
     p, N = X.shape
     c = Y.shape[0]
     W1 = np.random.randn(h, p)
