@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# --- 1. Carregamento e pré-processamento dos dados ---
+
 def carregar_dados(path='coluna_vertebral.csv'):
     dados = np.genfromtxt(path, delimiter=',', dtype=str)
     X = dados[1:, :-1].astype(float).T
@@ -16,7 +16,7 @@ def carregar_dados(path='coluna_vertebral.csv'):
         elif rot == 'SL': Y[:, i] = [-1, -1, 1]
     return X, Y
 
-# --- 2. Funções de treinamento ---
+
 def perceptron_simples(X, Y, epocas=600, eta=0.01):
     W = np.random.randn(Y.shape[0], X.shape[0])
     for _ in range(epocas):
@@ -58,12 +58,12 @@ def mlp(X, Y, h=10, epocas=600, eta=0.01):
         b1 -= eta * db1
     return W1, b1, W2, b2
 
-# --- 3. Predição dos modelos ---
+
 def pred_perceptron(W, X): return np.sign(W @ X)
 def pred_adaline(W, X): return np.sign(W @ X)
 def pred_mlp(W1, b1, W2, b2, X): return np.sign(W2 @ np.tanh(W1 @ X + b1) + b2)
 
-# --- 4. Avaliação e validação ---
+
 def calcula_metricas(y_true, y_pred):
     acertos = np.all(y_true == y_pred, axis=0)
     acuracia = np.mean(acertos)
@@ -95,7 +95,7 @@ def matriz_confusao(y_true, y_pred):
     for t, p in zip(true, pred): M[t, p] += 1
     return M
 
-# --- 5. Execução Monte Carlo e análises ---
+
 def monte_carlo(X, Y, R=100):
     resultados = {k: [] for k in ['Perceptron', 'ADALINE', 'MLP']}
     confs = []
@@ -163,7 +163,7 @@ def imprimir_estatisticas(resultados):
         for k, v in estatisticas(modelo, resultados).items():
             print(f'{k}: {v:.4f}')
 
-# --- Execução final ---
+
 X, Y = carregar_dados()
 resultados, confs = monte_carlo(X, Y)
 plot_confusoes(confs, resultados)
