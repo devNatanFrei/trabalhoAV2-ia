@@ -1,14 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Carregamento dos dados
+
 def load_data():
     data = np.loadtxt('aerogerador.dat', delimiter='\t')
     x = data[:, 0].reshape(-1, 1)
     y = data[:, 1].reshape(-1, 1)
     return x, y
 
-# Gráfico de dispersão dos dados
+
 def plot_data(x, y):
     plt.figure(figsize=(10, 6))
     plt.scatter(x, y, s=10)
@@ -16,7 +16,7 @@ def plot_data(x, y):
     plt.ylabel('Potência Gerada')
     plt.title('Potência Gerada pelo Aerogerador')
 
-# Modelo ADALINE
+
 class Adaline:
     def __init__(self, learning_rate=0.01, n_epochs=100):
         self.learning_rate = learning_rate
@@ -40,7 +40,7 @@ class Adaline:
     def predict(self, x):
         return x @ self.w + self.b
 
-# Modelo MLP com 1 camada oculta
+
 class MLP:
     def __init__(self, n_hidden, learning_rate, n_ephocs, random_state=None):
         self.n_hidden = n_hidden
@@ -94,7 +94,7 @@ class MLP:
         output = a1 @ self.w2 + self.b2
         return output
 
-# Curvas de aprendizado
+
 def plot_learning_curve(models, labels, title='Curvas de Aprendizado'):
     plt.figure(figsize=(10, 6))
     for model, label in zip(models, labels):
@@ -105,7 +105,7 @@ def plot_learning_curve(models, labels, title='Curvas de Aprendizado'):
     plt.legend()
     plt.grid()
 
-# Validação Monte Carlo (250 rodadas)
+
 def monte_carlo_validation(model_class, x, y, R, **model_params):
     mse_list = []
     
@@ -134,33 +134,31 @@ def monte_carlo_validation(model_class, x, y, R, **model_params):
     }
     return results
 
-# Execução principal
+
 x, y = load_data()
 plot_data(x, y)
 plt.show()
 
-# Comentário: Hiperparâmetros foram ajustados empiricamente com base na estabilidade da curva de aprendizado.
 
-# Treinamento MLP com 3 topologias
-mlp_under = MLP(n_hidden=2, learning_rate=0.01, n_ephocs=600)      # underfitting
-mlp_ideal = MLP(n_hidden=10, learning_rate=0.01, n_ephocs=600)     # adequada
-mlp_over  = MLP(n_hidden=50, learning_rate=0.01, n_ephocs=600)     # overfitting
+mlp_under = MLP(n_hidden=2, learning_rate=0.01, n_ephocs=600)    
+mlp_ideal = MLP(n_hidden=10, learning_rate=0.01, n_ephocs=600)    
+mlp_over  = MLP(n_hidden=50, learning_rate=0.01, n_ephocs=600)     
 
 mlp_under.fit(x, y)
 mlp_ideal.fit(x, y)
 mlp_over.fit(x, y)
 
-# Gráfico de curvas de aprendizado
+
 plot_learning_curve([mlp_under, mlp_ideal, mlp_over],
                     ['Underfitting (2 neurônios)', 'Adequada (10 neurônios)', 'Overfitting (50 neurônios)'],
                     title='Curvas de Aprendizado - MLP')
 plt.show()
 
-# Validação Monte Carlo
+
 adaline_results = monte_carlo_validation(Adaline, x, y, R=250, learning_rate=0.01, n_epochs=1000)
 mlp_results     = monte_carlo_validation(MLP, x, y, R=250, n_hidden=10, learning_rate=0.01, n_ephocs=1000)
 
-# Impressão dos resultados
+
 print("\nResultados da Validação Monte Carlo (250 rodadas):")
 print("ADALINE:")
 for k, v in adaline_results.items():
